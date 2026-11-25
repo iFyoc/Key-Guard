@@ -1,0 +1,44 @@
+name: 构建 APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 解压工程压缩包
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -1)
+          if [ -z "$ZIP" ]; then echo "::error::仓库根目录没有找到工程压缩包"; exit 1; fi
+          unzip -q "$ZIP" -d extracted
+          PROJ=$(dirname "$(find extracted -maxdepth 3 -name settings.gradle | head -1)")
+          echo "PROJ=$PROJ" >> "$GITHUB_ENV"
+          echo "工程目录: $PROJ"
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 Gradle 8.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
+      - name: 单元测试并构建 Debug APK
+        run: cd "$PROJ" && gradle test assembleDebug --no-daemon
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeyGuard-debug-apk
+          path: ${{ env.PROJ }}/app/build/outputs/apk/debug/*.apk
